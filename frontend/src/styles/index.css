@@ -1,0 +1,157 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   TrendMind AI — design system foundations
+   ============================================================ */
+
+:root {
+  color-scheme: dark;
+  --bg: #05070f;
+  --surface: #0d1224;
+  --border: rgba(148, 163, 184, 0.14);
+  --text: #dde3f2;
+  --text-muted: #8892b3;
+  --accent: #8b6cff;
+  --focus-ring: rgba(139, 108, 255, 0.65);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-midnight-950 text-slateui-100 font-sans antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Visible, accessible focus for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: rgba(139, 108, 255, 0.35);
+  color: #fff;
+}
+
+/* Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a3352 transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #2a3352;
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@layer components {
+  /* ---- Shared surfaces ---- */
+  .panel {
+    @apply bg-midnight-800 border border-slateui-700/60 rounded-lg shadow-panel;
+  }
+  .panel-subtle {
+    @apply bg-midnight-850 border border-slateui-700/40 rounded-lg;
+  }
+
+  /* ---- Buttons ---- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium
+      transition-all duration-200 ease-smooth select-none
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-violetui-600 hover:bg-violetui-500 text-white px-4 py-2.5
+      shadow-[0_8px_30px_-12px_rgba(109,74,255,0.7)]
+      hover:shadow-[0_8px_34px_-10px_rgba(109,74,255,0.85)];
+  }
+  .btn-secondary {
+    @apply btn bg-midnight-700 hover:bg-midnight-600 text-slateui-100 px-4 py-2.5
+      border border-slateui-600/70;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent hover:bg-midnight-700 text-slateui-200 px-3 py-2;
+  }
+  .btn-danger {
+    @apply btn bg-red-500/10 hover:bg-red-500/20 text-red-300 px-4 py-2.5 border border-red-500/30;
+  }
+
+  /* ---- Form controls ---- */
+  .input {
+    @apply w-full bg-midnight-900 border border-slateui-600/60 rounded-md px-3.5 py-2.5
+      text-sm text-slateui-100 placeholder:text-slateui-400
+      transition-colors duration-200
+      hover:border-slateui-500/70
+      focus:border-violetui-500 focus:outline-none focus:ring-1 focus:ring-violetui-500/50;
+  }
+  .label {
+    @apply block text-xs font-medium text-slateui-300 mb-1.5 tracking-wide uppercase;
+  }
+
+  /* ---- Badges ---- */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded px-2 py-0.5 text-2xs font-medium
+      border tracking-wide uppercase;
+  }
+  .badge-demo {
+    @apply badge bg-amber-400/10 text-amber-300 border-amber-400/30;
+  }
+  .badge-live {
+    @apply badge bg-cyanui-500/10 text-cyanui-400 border-cyanui-500/30;
+  }
+  .badge-neutral {
+    @apply badge bg-slateui-600/20 text-slateui-200 border-slateui-500/40;
+  }
+
+  /* ---- Section headings ---- */
+  .section-title {
+    @apply text-lg font-semibold text-slateui-100 font-display tracking-tight;
+  }
+  .section-kicker {
+    @apply text-2xs font-semibold uppercase tracking-[0.18em] text-violetui-400;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .gradient-text {
+    @apply bg-gradient-to-r from-violetui-400 via-blueui-400 to-cyanui-400 bg-clip-text text-transparent;
+  }
+  .skeleton {
+    @apply rounded bg-midnight-700 animate-shimmer;
+    background-image: linear-gradient(
+      90deg,
+      rgba(30, 39, 64, 0) 0,
+      rgba(61, 72, 112, 0.45) 40px,
+      rgba(30, 39, 64, 0) 80px
+    );
+    background-size: 400px 100%;
+    background-repeat: no-repeat;
+  }
+}
