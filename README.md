@@ -14,7 +14,8 @@ When evidence is insufficient, reports say so explicitly.
 
 ## Implementation checklist
 
-All phases completed and verified (details in the final response):
+All phases completed and verified — see [Running tests](#running-tests) for the
+current results.
 
 - [x] **Phase 1 — Foundation:** structure, dependencies, design system, landing page + dashboard shell, frontend builds
 - [x] **Phase 2 — UI:** navigation + mobile drawer, search form with filters, result/theme cards, loading/error/empty states, labeled demo data, responsive layouts, 4 component tests
@@ -25,6 +26,15 @@ All phases completed and verified (details in the final response):
 - [x] **Phase 7 — History & reports:** history with pagination/deletion, saved topics, 12-section report page, Markdown/JSON export, persistence verified
 - [x] **Phase 8 — Security & QA:** validation/error handling, SSRF test suite, secret-handling review, backend **126 passed**, frontend tsc + eslint + vitest **4/4** + build all pass
 - [x] **Phase 9 — Docs & deployment:** README, methodology/architecture/deployment docs, Vercel config, local-run checklist, honest limitations
+
+### Upgrade session (2026 — current state)
+
+- [x] **Phase 2 — Premium UI/UX:** CSS-variable design tokens, **light + dark theme** with persisted toggle, redesigned landing/dashboard/report surfaces, AppShell focus-trap drawer, micro-interactions, `animate-fadeUp`, print stylesheet
+- [x] **Phase 3 — Research workflow honesty:** SSE progress streaming (`/api/research/stream`) with real pipeline stages, query validation, per-source **extraction-status badges** (`blocked` / `failed` / `skipped` + user-safe notes), **uncited-finding flags**, evidence-class labeling (retrieved / interpretation / hypothesis)
+- [x] **Phase 4 — Features:** PDF export (reportlab) + Print button + print CSS · report **comparison** (`/compare`) · **Evidence Explorer** (sources ↔ claims both directions) · History **date filters** (server-side) · real **activity-over-time** chart from existing DB rows · auth **deferred** (design in [`docs/auth-design.md`](docs/auth-design.md))
+- [x] **Phase 5 — Quality:** dead-code cleanup, duplicated dashboard metrics fixed, backend **142 passed** (3× consecutive), frontend tsc + eslint + vitest **5/5** + build all pass, browser-verified in both themes
+- [x] **Phase 6 — Historical trend tracking:** tracked topics, dated snapshots derived from real stored runs, consecutive-snapshot change detection with an explicit absence caveat, history chart, optional bounded AI summary with transparent basic-mode fallback (`/trends`)
+- [x] **Phase 7 — Release-readiness audit:** navigation verified (Compare added to the sidebar; header titles for `/compare` + `/trends`), dashboard now surfaces **real tracked-topic status + latest detected changes** (independent failure isolation), loading/empty/error/responsive/theme/focus states audited, DB init verified additive for existing data, secrets audit clean, README brought up to date — backend **237 passed**, frontend tsc + eslint + vitest **28/28** + build all pass
 
 ## Problem statement
 
@@ -54,8 +64,16 @@ TrendMind AI runs a transparent research pipeline:
 
 - **Landing page** with hero research input, example topics, capabilities,
   product preview, methodology, and footer links.
-- **Intelligence dashboard** — recent research, saved topics, real activity
-  counts (computed from this instance's database, never invented).
+- **Light + dark theme** — CSS-variable design tokens, persisted toggle
+  (system preference honored, no flash of wrong theme).
+- **Live progress** — the research workspace streams honest pipeline stages
+  (searching → extracting → analyzing → validating) from the backend over
+  SSE; each stage appears only when it actually runs.
+- **Intelligence dashboard** — recent research, saved topics, **tracked-topic
+  status with the latest detected trend changes** (real snapshot counts and
+  change intervals from this instance's database, never invented), real
+  activity counts, and a 30-day **activity-over-time** chart (zero-filled from
+  real rows).
 - **Research workspace** — validated query + filters (category, region,
   language, time range, result count), loading/error/empty states.
 - **SerpApi live search** from the backend only; key never reaches the browser.
@@ -68,13 +86,32 @@ TrendMind AI runs a transparent research pipeline:
 - **Deterministic basic analysis** fallback — labeled as non-AI everywhere.
 - **Trend discovery** — themes, recurring terms, conflicts, and gaps with a
   documented 0–100 evidence-strength formula.
-- **Intelligence reports** — 12 sections from research question to methodology,
-  with clickable citations that can only point at collected sources.
+- **Intelligence reports** — 13 sections from research question to
+  methodology, with clickable citations that can only point at collected
+  sources; findings without a supporting source are flagged, not hidden.
+- **Evidence Explorer** — every collected source shows the exact claims it
+  supports; every claim links back to its sources; retrieval state
+  (`extracted` / `blocked` / `failed` / `skipped`) and user-safe notes are
+  shown per source.
+- **Report comparison** — pick any two stored runs (`/compare`) for a
+  side-by-side of metrics, shared sources (exact-URL overlap), and theme
+  overlap, all computed from the records themselves.
+- **Historical trend tracking** (`/trends`) — track any research query and
+  follow it across **dated snapshots derived from real stored runs** (no
+  fabricated history): a history chart once ≥2 snapshots exist, deterministic
+  change detection between consecutive snapshots (newly observed / no longer
+  observed / source-coverage and theme-strength deltas), date filters,
+  snapshot details with source links, an explicit caveat that **absence from
+  a newer search is not proof a finding is false**, and an optional one-call
+  AI summary that falls back to a clearly labeled basic analysis.
 - **Interactive analytics** — theme distribution, source distribution, evidence
   coverage (Recharts; real data only; accessible descriptions; empty states).
-- **Research history** with pagination and deletion; **saved topics** with
+- **Research history** with pagination, deletion, and **date filters**
+  (presets + custom range, applied server-side); **saved topics** with
   add/remove.
-- **Report export** — Markdown and JSON with safe filenames and escaped content.
+- **Report export** — server-rendered **PDF** (reportlab), **Print** (with a
+  print-optimized stylesheet that forces light output), Markdown, and JSON —
+  all with safe filenames and escaped content.
 - **Settings** — search defaults, theme preference, configuration status
   (booleans only, no secrets), privacy explanation.
 - **Accessible UI** — semantic HTML, visible focus states, keyboard navigation,
@@ -88,7 +125,7 @@ TrendMind AI runs a transparent research pipeline:
 ```mermaid
 flowchart TD
     subgraph FE["Frontend — React + TypeScript + Vite + Tailwind"]
-        P["Pages: Landing, Dashboard, Research, Report, History, Topics, Settings, About"]
+        P["Pages: Landing, Dashboard, Research, Report, History, Compare, Trends, Topics, Settings, About"]
         API["Typed API layer (src/services/api.ts)"]
     end
     subgraph BE["Backend — FastAPI"]
@@ -133,6 +170,7 @@ TrendMind-AI/
 ├── .env.example                # placeholders only
 ├── docs/
 │   ├── architecture.md
+│   ├── auth-design.md           # deferred auth: full design, not implemented
 │   ├── methodology.md
 │   └── deployment.md
 ├── frontend/
@@ -144,10 +182,11 @@ TrendMind-AI/
 │   └── src/
 │       ├── main.tsx / App.tsx
 │       ├── components/  (layout, ui, search, results, report, charts)
+│       │   └── ui/ThemeProvider.tsx   # light/dark tokens, persisted
 │       ├── pages/       (Landing, Dashboard, NewResearch, ReportPage,
-│       │                 History, SavedTopics, Settings, About)
+│       │                 History, Compare, Trends, SavedTopics, Settings, About)
 │       ├── hooks/       (useToast, useConfigStatus)
-│       ├── services/    (api.ts — the only fetch layer)
+│       ├── services/    (api.ts — the only fetch layer, incl. SSE parsing)
 │       ├── types/       (api.ts — mirrors backend schemas)
 │       ├── styles/      (index.css — design system)
 │       └── test/        (Vitest component tests, mocked API)
@@ -166,12 +205,15 @@ TrendMind-AI/
     │   │   ├── analysis_pipeline.py   # orchestration
     │   │   ├── basic_analysis.py      # deterministic fallback
     │   │   ├── trends.py              # themes + scoring formula
+    │   │   ├── comparison.py          # run-vs-run comparison
+    │   │   ├── trend_tracking.py      # dated snapshots + change detection
     │   │   ├── citations.py           # citation validation
     │   │   ├── export.py              # Markdown / JSON
+    │   │   ├── pdf_export.py              # server-rendered PDF (reportlab)
     │   │   └── ai/                    # adapters + prompts
     │   ├── database/           # db.py, repository.py
     │   └── security/           # ssrf.py, ratelimit.py, sanitize.py
-    └── tests/                  # 126 tests, all externals mocked
+    └── tests/                  # 237 tests, all externals mocked
 ```
 
 ---
@@ -319,13 +361,17 @@ cd backend
 python -m pytest tests/ -q
 ```
 
-**Result: 126 passed** covering: health/config endpoints, input validation,
+**Result: 237 passed** covering: health/config endpoints, input validation,
 missing SerpApi key, search normalization (valid/malformed/empty), API error
 mapping (timeout, 429, auth, unreadable), citation validation, trend analysis
-and scoring, database persistence, report generation/export, SSRF URL
+and scoring, database persistence (incl. date-filtered listing and the
+zero-filled activity series), report generation/export (Markdown, JSON, PDF),
+extraction-status propagation to `SourceRef`, SSE stream endpoints, SSRF URL
 validation, source-extraction restrictions, HTML extraction, AI malformed-output
-handling (one repair attempt then fallback), prompt-injection containment, and
-rate limiting.
+handling (one repair attempt then fallback), prompt-injection containment,
+rate limiting, run-vs-run comparison, and **historical trend tracking**
+(snapshot storage from real runs, chronological ordering, change detection,
+absence caveats, AI-summary fallback, trends API validation).
 
 ### Frontend
 
@@ -333,7 +379,7 @@ rate limiting.
 cd frontend
 npm run typecheck     # tsc — passed
 npm run lint          # eslint — passed
-npm test              # vitest — 4 passed (API mocked)
+npm test              # vitest — 28 passed (API mocked)
 npm run build         # production build — passed
 ```
 
@@ -346,14 +392,27 @@ npm run build         # production build — passed
 | GET | `/api/health` | Liveness + version |
 | GET | `/api/config/status` | Feature flags (booleans only, no secrets) |
 | POST | `/api/research` | Run a research query (rate-limited) |
-| GET | `/api/research?limit&offset` | History list with pagination |
+| POST | `/api/research/stream` | Same, as SSE: honest progress stages + final record |
+| GET | `/api/research?limit&offset&date_from&date_to` | History list with pagination and optional UTC date filters (YYYY-MM-DD) |
 | GET | `/api/research/{id}` | Full record + report |
 | DELETE | `/api/research/{id}` | Delete a record |
+| GET | `/api/stats` | Real workspace counters (this instance only) |
+| GET | `/api/stats/activity?days` | Daily run counts, zero-filled (1–365 days) |
 | GET | `/api/topics` | Saved topics |
 | POST | `/api/topics` | Save a topic |
 | DELETE | `/api/topics/{id}` | Remove a topic |
 | GET | `/api/reports/{id}/markdown` | Markdown export (attachment) |
 | GET | `/api/reports/{id}/json` | JSON export (attachment) |
+| GET | `/api/reports/{id}/pdf` | PDF export (attachment, reportlab) |
+| GET | `/api/compare?a&b&mode` | Side-by-side comparison of two stored runs |
+| GET | `/api/compare/markdown?a&b` | Comparison as Markdown (attachment) |
+| GET | `/api/compare/json?a&b` | Comparison as JSON (attachment) |
+| GET | `/api/compare/pdf?a&b` | Comparison as PDF (attachment) |
+| GET | `/api/trends` | Tracked topics with real snapshot counts |
+| GET | `/api/trends/candidates` | Queries with completed runs (for the tracking picker) |
+| POST | `/api/trends` | Start tracking a query (422 unless ≥1 completed run exists) |
+| GET | `/api/trends/{id}?dateFrom&dateTo&mode` | Dated snapshots + consecutive change detection (`mode`: `basic` \| `auto`) |
+| DELETE | `/api/trends/{id}` | Stop tracking a topic |
 
 Errors always return:
 `{"error": {"code": "...", "message": "user-facing text", "details": {...}}}`
@@ -408,30 +467,38 @@ from this environment. Follow the checklist in the doc to deploy and verify.
 ## Limitations
 
 - **No authentication.** History and saved topics are shared across the
-  instance and are **not private per user**.
+  instance and are **not private per user**. A complete design (sessions,
+  per-record authorization, additive migration) is documented in
+  [`docs/auth-design.md`](docs/auth-design.md) — deliberately not implemented
+  in v1.
 - **Snapshot analysis.** One search cannot establish trends over time; findings
-  are phrased as themes observed in the collected results.
+  are phrased as themes observed in the collected results. The activity chart
+  tracks *research runs* from real database rows — it is not a web-trend time
+  series.
 - **Demo domains.** Demo links point to reserved `example.*` pages by design.
 - **AI-dependent sections.** Opportunities/developments are sparse in basic
   mode (deliberately — it does not fabricate interpretation).
 - **Rate limiter is per-process/in-memory** — multi-worker deployments multiply
   the effective limit.
 - **Some sites block extraction** (JS-rendered, bot-protected, paywalled);
-  these degrade to snippet analysis and are labeled as such.
-- **PDF export not implemented** — Markdown and JSON only (reliable, no extra
-  dependencies).
-- **No historical snapshots** — the timeline chart renders only when valid
-  publication dates exist in collected data.
+  these degrade to snippet analysis and are labeled as such per source.
+- **Report comparison matches sources by exact URL** — the same article on two
+  different URLs counts as two sources.
+- **PDF rendering uses system fonts when available** (Arial/DejaVu); exotic
+  scripts may transliterate to Latin-1 on systems without Unicode TTFs.
 
 ## Future improvements
 
-- Authentication with server-side authorization on every private record.
-- Scheduled snapshot collection for genuine time-series trend charts.
+- Implement the designed authentication layer
+  ([`docs/auth-design.md`](docs/auth-design.md)) with server-side
+  authorization on every private record.
+- Scheduled snapshot collection for genuine web-trend time series (the current
+  activity chart covers research-run history only).
 - User-managed extraction allow/deny lists and per-domain concurrency limits.
-- PDF export via an optional, well-tested renderer.
+- Richer keyboard shortcuts in the research workspace.
 - External database adapter (Postgres) behind the repository layer.
-- Streaming/partial results for long research runs.
-- Light theme and richer keyboard shortcuts.
+- Per-source reliability scoring — only with a transparent, documented formula
+  (consistent with the existing evidence-strength methodology).
 
 ## Recording a demo
 

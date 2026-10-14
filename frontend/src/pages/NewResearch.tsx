@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { ArrowRight, Info, Save, SearchX } from 'lucide-react';
 import ResearchForm from '../components/search/ResearchForm';
+import ResearchProgress from '../components/search/ResearchProgress';
 import ResultCard from '../components/results/ResultCard';
 import ErrorState from '../components/ui/ErrorState';
 import EmptyState from '../components/ui/EmptyState';
@@ -10,7 +11,7 @@ import ModeBadge from '../components/ui/ModeBadge';
 import { useToast } from '../hooks/useToast';
 import { useConfigStatus } from '../hooks/useConfigStatus';
 import { api, ApiError } from '../services/api';
-import type { ResearchRecord, ResearchRequest } from '../types/api';
+import type { ResearchRecord, ResearchRequest, ResearchStage } from '../types/api';
 
 /**
  * Search & analysis workspace. Runs a research request, then shows the
@@ -26,9 +27,9 @@ export default function NewResearch() {
 
   const [record, setRecord] = useState<ResearchRecord | null>(null);
   const [loading, setLoading] = useState(false);
+  const [stage, setStage] = useState<ResearchStage | null>(null);
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [saved, setSaved] = useState(false);
-  const ranOnce = useRef(false);
 
   const urlQuery = searchParams.get('q')?.trim() ?? '';
   const statePayload = (location.state as ResearchRequest | null) ?? null;
@@ -39,8 +40,10 @@ export default function NewResearch() {
       setError(null);
       setRecord(null);
       setSaved(false);
+      setStage(null);
       try {
-        const result = await api.createResearch(payload);
+        // SSE stream: progress stages are real backend step events.
+        const result = await api.createResearchStream(payload, setStage);
         setRecord(result);
         if (result.status === 'failed') {
           setError({
@@ -57,22 +60,22 @@ export default function NewResearch() {
           setError({ code: 'unknown', message: 'The research request failed unexpectedly.' });
         }
       } finally {
+        setStage(null);
         setLoading(false);
       }
     },
     [],
   );
 
-  // Auto-run once when arriving with ?q= or a dashboard payload.
+  // Auto-run when arriving with ?q= or a dashboard payload — and re-run when
+  // the query CHANGES while this page stays mounted (e.g. a second search from
+  // the header). Each distinct query runs exactly once per navigation.
+  const lastAutoRun = useRef<string | null>(null);
   useEffect(() => {
-    if (ranOnce.current) return;
-    if (statePayload?.query) {
-      ranOnce.current = true;
-      void runResearch(statePayload);
-    } else if (urlQuery) {
-      ranOnce.current = true;
-      void runResearch({ query: urlQuery });
-    }
+    const key = statePayload?.query ?? urlQuery;
+    if (!key || lastAutoRun.current === key) return;
+    lastAutoRun.current = key;
+    void runResearch(statePayload?.query ? statePayload : { query: urlQuery });
   }, [statePayload, urlQuery, runResearch]);
 
   async function saveTopic() {
@@ -119,14 +122,14 @@ export default function NewResearch() {
         )}
       </section>
 
-      {/* Loading state */}
+      {/* Loading state — honest progress stages from the backend stream */}
       {loading && (
-        <section aria-live="polite" aria-busy="true">
-          <div className="mb-4 flex items-center gap-3 text-sm text-slateui-300">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-violetui-400" aria-hidden />
-            Collecting search results, extracting accessible sources, and analyzing evidence…
-          </div>
-          <SkeletonList count={4} />
+        <section aria-busy="true" className="space-y-4">
+          <ResearchProgress
+            stage={stage}
+            showExtraction={Boolean(status && !status.demoMode && status.sourceExtractionEnabled)}
+          />
+          <SkeletonList count={3} />
         </section>
       )}
 

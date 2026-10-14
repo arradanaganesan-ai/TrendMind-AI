@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, FileText, History as HistoryIcon, Plus, Trash2 } from 'lucide-react';
+import {
+  ArrowRight,
+  FileText,
+  GitCompareArrows,
+  History as HistoryIcon,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import EmptyState from '../components/ui/EmptyState';
 import ErrorState from '../components/ui/ErrorState';
 import { SkeletonList } from '../components/ui/Skeletons';
@@ -24,6 +31,17 @@ function formatDate(iso: string): string {
   });
 }
 
+/** Local calendar date as YYYY-MM-DD, shifted by `daysAgo` (0 = today). */
+function localDate(daysAgo = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate(),
+  ).padStart(2, '0')}`;
+}
+
+type DatePreset = 'all' | '7d' | '30d' | 'custom';
+
 /**
  * Research history with pagination and deletion.
  * History is local to this application instance (documented in the UI).
@@ -37,24 +55,53 @@ export default function History() {
   const [error, setError] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<ResearchListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [preset, setPreset] = useState<DatePreset>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const hasDateFilter = Boolean(dateFrom || dateTo);
 
-  const load = useCallback(async (off: number) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.listResearch(PAGE_SIZE, off);
-      setItems(res.items);
-      setTotal(res.total);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not load research history.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (off: number) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.listResearch(PAGE_SIZE, off, {
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+        });
+        setItems(res.items);
+        setTotal(res.total);
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Could not load research history.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [dateFrom, dateTo],
+  );
 
   useEffect(() => {
     void load(offset);
   }, [offset, load]);
+
+  function applyPreset(p: Exclude<DatePreset, 'custom'>) {
+    setPreset(p);
+    if (p === 'all') {
+      setDateFrom('');
+      setDateTo('');
+    } else {
+      setDateFrom(localDate(p === '7d' ? 7 : 30));
+      setDateTo('');
+    }
+    setOffset(0);
+  }
+
+  function clearFilters() {
+    setPreset('all');
+    setDateFrom('');
+    setDateTo('');
+    setOffset(0);
+  }
 
   async function confirmDelete() {
     if (!toDelete) return;
@@ -85,19 +132,87 @@ export default function History() {
             Research history
           </h2>
           <p className="mt-2 text-sm text-slateui-300">
-            {loading ? 'Loading…' : `${total} record${total === 1 ? '' : 's'} stored on this instance.`}
+            {loading
+              ? 'Loading…'
+              : `${total} record${total === 1 ? '' : 's'}${
+                  hasDateFilter ? ' matching the date filter' : ' stored on this instance'
+                }.`}
           </p>
         </div>
-        <Link to="/research" className="btn-primary">
-          <Plus size={15} aria-hidden />
-          New research
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link to="/compare" className="btn-secondary">
+            <GitCompareArrows size={15} aria-hidden />
+            Compare runs
+          </Link>
+          <Link to="/research" className="btn-primary">
+            <Plus size={15} aria-hidden />
+            New research
+          </Link>
+        </div>
       </div>
 
       <p className="rounded-md border border-slateui-600/50 bg-midnight-850 px-4 py-3 text-xs leading-relaxed text-slateui-400">
         History is stored locally in this application instance’s database. It is not private per
         user — there is no per-user isolation in this version.
       </p>
+
+      {/* Date filter — applied server-side against created_at (UTC) */}
+      <div
+        className="flex flex-wrap items-center gap-2"
+        role="group"
+        aria-label="Filter research history by date"
+      >
+        <span className="mr-1 text-2xs uppercase tracking-widest text-slateui-500">Filter</span>
+        {(['all', '7d', '30d'] as const).map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => applyPreset(p)}
+            aria-pressed={preset === p}
+            className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+              preset === p
+                ? 'border-violetui-500/60 bg-violetui-600/15 text-violetui-300'
+                : 'border-slateui-600/70 bg-midnight-800 text-slateui-300 hover:border-violetui-500/40'
+            }`}
+          >
+            {p === 'all' ? 'All time' : p === '7d' ? 'Last 7 days' : 'Last 30 days'}
+          </button>
+        ))}
+        <span className="mx-1 h-4 w-px bg-slateui-700" aria-hidden />
+        <label className="flex items-center gap-1.5 text-xs text-slateui-400">
+          From
+          <input
+            type="date"
+            value={dateFrom}
+            max={dateTo || undefined}
+            onChange={(e) => {
+              setPreset('custom');
+              setDateFrom(e.target.value);
+              setOffset(0);
+            }}
+            className="rounded-md border border-slateui-600/70 bg-midnight-800 px-2 py-1 text-xs text-slateui-200 focus:border-violetui-500/60 focus:outline-none"
+          />
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-slateui-400">
+          To
+          <input
+            type="date"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(e) => {
+              setPreset('custom');
+              setDateTo(e.target.value);
+              setOffset(0);
+            }}
+            className="rounded-md border border-slateui-600/70 bg-midnight-800 px-2 py-1 text-xs text-slateui-200 focus:border-violetui-500/60 focus:outline-none"
+          />
+        </label>
+        {hasDateFilter && (
+          <button type="button" className="btn-ghost text-xs" onClick={clearFilters}>
+            Clear filter
+          </button>
+        )}
+      </div>
 
       {error && <ErrorState message={error} onRetry={() => void load(offset)} />}
 
@@ -106,13 +221,23 @@ export default function History() {
       ) : !error && items.length === 0 ? (
         <EmptyState
           icon={<HistoryIcon size={22} aria-hidden />}
-          title="No research history"
-          description="Completed research runs are saved here automatically so you can revisit their reports."
+          title={hasDateFilter ? 'No runs in this date range' : 'No research history'}
+          description={
+            hasDateFilter
+              ? 'No research runs were created within the selected dates. Widen or clear the filter to see more.'
+              : 'Completed research runs are saved here automatically so you can revisit their reports.'
+          }
           action={
-            <Link to="/research" className="btn-primary">
-              <Plus size={15} aria-hidden />
-              Start your first research
-            </Link>
+            hasDateFilter ? (
+              <button type="button" className="btn-primary" onClick={clearFilters}>
+                Clear filter
+              </button>
+            ) : (
+              <Link to="/research" className="btn-primary">
+                <Plus size={15} aria-hidden />
+                Start your first research
+              </Link>
+            )
           }
         />
       ) : (

@@ -6,11 +6,14 @@ import {
   Compass,
   FileText,
   GitBranch,
+  Moon,
   Search,
   ShieldCheck,
   Sparkles,
+  Sun,
   Target,
 } from 'lucide-react';
+import { useTheme } from '../components/ui/ThemeProvider';
 
 const EXAMPLE_CHIPS = [
   'AI & Machine Learning',
@@ -58,6 +61,7 @@ const STEPS = [
 export default function Landing() {
   const [topic, setTopic] = useState('');
   const navigate = useNavigate();
+  const { resolved, toggleTheme } = useTheme();
 
   const repoUrl = import.meta.env.VITE_GITHUB_REPO_URL as string | undefined;
 
@@ -83,6 +87,15 @@ export default function Landing() {
             <span className="font-display font-semibold tracking-tight">TrendMind AI</span>
           </div>
           <nav aria-label="Landing" className="flex items-center gap-1 sm:gap-3">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="btn-ghost p-2 text-slateui-400"
+              aria-label={resolved === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              title={resolved === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            >
+              {resolved === 'dark' ? <Sun size={17} aria-hidden /> : <Moon size={17} aria-hidden />}
+            </button>
             <Link to="/about" className="btn-ghost text-sm text-slateui-300">
               Methodology
             </Link>
@@ -99,7 +112,12 @@ export default function Landing() {
           aria-hidden
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(109,74,255,0.16),transparent_55%)]"
         />
-        <div className="relative mx-auto max-w-4xl px-4 pb-16 pt-20 text-center sm:px-6 sm:pt-28">
+        {/* Faint engineering-grid backdrop, masked to fade out downward */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 [background-image:linear-gradient(rgba(148,163,184,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.06)_1px,transparent_1px)] [background-size:44px_44px] [mask-image:radial-gradient(ellipse_at_top,black_25%,transparent_72%)]"
+        />
+        <div className="relative mx-auto max-w-4xl animate-fadeUp px-4 pb-16 pt-20 text-center sm:px-6 sm:pt-28">
           <p className="section-kicker mb-5">The Web Intelligence Engine</p>
           <h1 className="font-display text-balance text-4xl font-bold leading-[1.08] tracking-tight sm:text-6xl">
             Turn the web into <span className="gradient-text">intelligence.</span>
@@ -154,6 +172,22 @@ export default function Landing() {
             <a href="#capabilities" className="btn-secondary px-6 py-3">
               Explore Capabilities
             </a>
+          </div>
+
+          {/* Honest trust chips — product traits, not invented metrics */}
+          <div className="mx-auto mt-7 flex max-w-2xl flex-wrap items-center justify-center gap-x-6 gap-y-2 text-2xs text-slateui-400">
+            <span className="inline-flex items-center gap-1.5">
+              <ShieldCheck size={13} aria-hidden className="text-cyanui-400" />
+              Every claim tied to collected sources
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <FileText size={13} aria-hidden className="text-violetui-400" />
+              Markdown &amp; print/PDF-ready reports
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Sparkles size={13} aria-hidden className="text-violetui-400" />
+              Demo mode works without API keys
+            </span>
           </div>
         </div>
       </section>
@@ -302,9 +336,6 @@ export default function Landing() {
             </div>
           </div>
           <nav aria-label="Footer" className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slateui-400">
-            <Link to="/about" className="transition-colors hover:text-slateui-100">
-              About
-            </Link>
             <Link to="/about" className="transition-colors hover:text-slateui-100">
               Methodology
             </Link>

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 
-from ..schemas import ResearchReport, SearchResult
+from ..schemas import ReportComparison, ResearchReport
 
 _SAFE_CHARS = re.compile(r"[^a-z0-9\s-]")
 
@@ -15,7 +15,7 @@ def safe_filename(query: str, extension: str) -> str:
     cleaned = _SAFE_CHARS.sub("", query.lower().strip())
     cleaned = re.sub(r"\s+", "-", cleaned).strip("-")[:60] or "research"
     ext = extension.lstrip(".")
-    if ext not in {"md", "json"}:
+    if ext not in {"md", "json", "pdf"}:
         ext = "txt"
     return f"trendmind-report-{cleaned}.{ext}"
 
@@ -34,7 +34,7 @@ def _cite_links(report: ResearchReport) -> dict[str, str]:
     return {s.id: s.url for s in report.sources}
 
 
-def report_to_markdown(report: ResearchReport, results: list[SearchResult] | None = None) -> str:
+def report_to_markdown(report: ResearchReport) -> str:
     """Render a full research report as portable Markdown."""
     urls = _cite_links(report)
     m = report.methodology
@@ -203,3 +203,136 @@ def report_to_markdown(report: ResearchReport, results: list[SearchResult] | Non
 def report_to_json(report: ResearchReport) -> str:
     """Serialize the report as stable, pretty-printed JSON."""
     return json.dumps(report.model_dump(mode="json"), indent=2, ensure_ascii=False)
+
+
+# --------------------------------------------------------------------------
+# Comparison exports
+# --------------------------------------------------------------------------
+
+def comparison_filename(query_a: str, query_b: str, extension: str) -> str:
+    """Safe download filename for a two-run comparison export."""
+    ext = extension.lstrip(".")
+    if ext not in {"md", "json", "pdf"}:
+        ext = "txt"
+
+    def side(query: str) -> str:
+        cleaned = _SAFE_CHARS.sub("", query.lower().strip())
+        cleaned = re.sub(r"\s+", "-", cleaned).strip("-")[:30]
+        return cleaned or "run"
+
+    return f"trendmind-compare-{side(query_a)}-vs-{side(query_b)}.{ext}"
+
+
+def comparison_to_markdown(cmp: ReportComparison) -> str:
+    """Render a report comparison as portable Markdown."""
+    lines: list[str] = []
+    lines.append("# Research Report Comparison")
+    lines.append("")
+    for label, run in (("A", cmp.runA), ("B", cmp.runB)):
+        lines.append(
+            f"> **Run {label}:** {_md_escape(run.query)} — searched {run.searchedAt} · "
+            f"{run.findingCount} findings · {run.sourceCount} sources · "
+            f"{'Demo data' if run.mode == 'demo' else 'Live search'} search · "
+            f"{'AI' if run.aiMode == 'llm' else 'basic'} analysis"
+        )
+    if cmp.temporalNote:
+        lines.append(f"> {_md_escape(cmp.temporalNote)}")
+    lines.append("")
+
+    lines.append("## How this comparison was computed")
+    lines.append("")
+    mode_line = (
+        "**AI-assisted comparison** — the configured model judged finding pairs."
+        if cmp.methodology.mode == "ai"
+        else "**Basic comparison** — deterministic text matching only; no AI model was used."
+    )
+    lines.append(mode_line)
+    lines.append("")
+    if cmp.methodology.aiNote:
+        lines.append(f"> {_md_escape(cmp.methodology.aiNote)}")
+        lines.append("")
+    for explanation in cmp.methodology.explanation:
+        lines.append(f"- {_md_escape(explanation)}")
+    lines.append("")
+
+    def pair_section(title: str, pairs, empty_note: str) -> None:
+        lines.append(f"## {title}")
+        lines.append("")
+        if not pairs:
+            lines.append(f"_{empty_note}_")
+            lines.append("")
+            return
+        for pair in pairs:
+            pct = round(pair.similarity * 100)
+            lines.append(
+                f"- **Run A#{pair.a.index + 1} ↔ Run B#{pair.b.index + 1}** "
+                f"({pair.matchType}, {pct}% token overlap)"
+            )
+            lines.append(f"  - A: {_md_escape(pair.a.text)}")
+            lines.append(f"  - B: {_md_escape(pair.b.text)}")
+            if pair.sharedSourceIds:
+                lines.append(f"  - Shared sources: {', '.join(pair.sharedSourceIds)}")
+        lines.append("")
+
+    pair_section("Shared findings (exact matches)", cmp.sharedFindings, "No identical findings in both runs.")
+    pair_section("Similar findings", cmp.similarFindings, "No sufficiently similar finding pairs were found.")
+
+    lines.append("## Potential conflicts")
+    lines.append("")
+    if cmp.conflicts:
+        for c in cmp.conflicts:
+            flag = (
+                "Insufficient evidence — text matching cannot confirm this contradiction."
+                if c.insufficientEvidence
+                else "Judged contradictory by the model — verify against the cited sources."
+            )
+            lines.append(f"- **Run A#{c.a.index + 1} ↔ Run B#{c.b.index + 1}** ({c.status})")
+            lines.append(f"  - A: {_md_escape(c.a.text)}")
+            lines.append(f"  - B: {_md_escape(c.b.text)}")
+            lines.append(f"  - {_md_escape(c.explanation)}")
+            lines.append(f"  - _Flag: {_md_escape(flag)}_")
+    else:
+        lines.append("_No potential conflicts were identified between the two runs._")
+    lines.append("")
+
+    lines.append("## Findings unique to one run")
+    lines.append("")
+    if cmp.uniqueToA:
+        lines.append(f"**Only in Run A ({len(cmp.uniqueToA)}):**")
+        for ref in cmp.uniqueToA:
+            lines.append(f"- {_md_escape(ref.text)}")
+        lines.append("")
+    if cmp.uniqueToB:
+        lines.append(f"**Only in Run B ({len(cmp.uniqueToB)}):**")
+        for ref in cmp.uniqueToB:
+            lines.append(f"- {_md_escape(ref.text)}")
+        lines.append("")
+    if not cmp.uniqueToA and not cmp.uniqueToB:
+        lines.append("_Every finding has a counterpart in the other run._")
+        lines.append("")
+    lines.append(f"> {_md_escape(cmp.noveltyCaveat)}")
+    lines.append("")
+
+    lines.append("## Source overlap")
+    lines.append("")
+    src = cmp.sources
+    lines.append(
+        f"- Shared URLs: **{src.sharedCount}** · only in A: **{src.onlyACount}** · "
+        f"only in B: **{src.onlyBCount}**"
+    )
+    for url in src.sharedUrls:
+        lines.append(f"- {_md_escape(url)}")
+    if src.sharedCount > len(src.sharedUrls):
+        lines.append(f"- _(+{src.sharedCount - len(src.sharedUrls)} more shared URLs)_")
+    if src.sharedDomains:
+        lines.append(f"- Shared domains: {_md_escape(', '.join(src.sharedDomains))}")
+    lines.append("")
+    lines.append("---")
+    lines.append("_Generated by TrendMind AI — The Web Intelligence Engine._")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def comparison_to_json(cmp: ReportComparison) -> str:
+    """Serialize the comparison as stable, pretty-printed JSON."""
+    return json.dumps(cmp.model_dump(mode="json"), indent=2, ensure_ascii=False)

@@ -1,20 +1,218 @@
+/* ============================================================
+   Self-hosted webfonts (OFL-licensed) — replaces the Google Fonts
+   <link> so the app renders identically without external network
+   calls (no proxy/console failures, works offline). Family names
+   match tailwind.config.js exactly; every stack keeps its
+   local/system fallbacks for glyphs these Latin subsets lack.
+
+   Sources: @fontsource/inter, @fontsource/space-grotesk,
+   @fontsource/jetbrains-mono — SIL Open Font License 1.1.
+   Files live in public/fonts/.
+   ============================================================ */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/inter-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/inter-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/inter-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/inter-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/space-grotesk-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/space-grotesk-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/space-grotesk-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2');
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ============================================================
    TrendMind AI — design system foundations
+
+   All palette values live here as space-separated RGB channels
+   and are consumed by tailwind.config.js via `<alpha-value>`.
+   Dark theme is the default (`:root`); the light theme swaps the
+   variable values under `[data-theme='light']` — component classes
+   stay untouched. Ramp semantics are identical in both themes:
+     midnight → surfaces · slateui → text/borders · violetui → accent.
    ============================================================ */
 
 :root {
   color-scheme: dark;
-  --bg: #05070f;
-  --surface: #0d1224;
-  --border: rgba(148, 163, 184, 0.14);
-  --text: #dde3f2;
-  --text-muted: #8892b3;
-  --accent: #8b6cff;
-  --focus-ring: rgba(139, 108, 255, 0.65);
+
+  /* Surfaces (dark) */
+  --tm-midnight-950: 5 7 15;     /* page background */
+  --tm-midnight-900: 8 11 22;    /* sidebar / header / inputs */
+  --tm-midnight-850: 10 14 28;   /* subtle surface */
+  --tm-midnight-800: 13 18 36;   /* panels */
+  --tm-midnight-700: 19 26 51;   /* raised controls */
+  --tm-midnight-600: 26 34 66;   /* hover surfaces */
+
+  /* Text & borders (dark) — 400/500 raised from 91/103/144 & 61/72/112 for
+     WCAG AA (4.5:1) on every dark surface incl. hover (midnight-700);
+     ramp order and hue preserved. */
+  --tm-slateui-700: 30 39 64;
+  --tm-slateui-600: 42 51 82;
+  --tm-slateui-500: 115 129 179;
+  --tm-slateui-400: 130 141 176;
+  --tm-slateui-300: 136 146 179;
+  --tm-slateui-200: 179 188 214;
+  --tm-slateui-100: 221 227 242;
+
+  /* Accents (dark) */
+  --tm-violetui-600: 109 74 255;
+  --tm-violetui-500: 139 108 255;
+  --tm-violetui-400: 167 139 255;
+  --tm-violetui-300: 196 177 255;
+  --tm-blueui-500: 59 130 246;
+  --tm-blueui-400: 96 165 250;
+  --tm-blueui-300: 147 197 253;
+  --tm-cyanui-500: 34 211 238;
+  --tm-cyanui-400: 94 231 247;
+
+  /* Status (dark) */
+  --tm-amber-300: 252 211 77;
+  --tm-amber-400: 251 191 36;
+  --tm-emerald-400: 52 211 153;
+  --tm-red-300: 252 165 165;
+  --tm-red-400: 248 113 113;
+  --tm-red-500: 239 68 68;
+
+  /* Elevation & effects (dark) */
+  --tm-shadow-inset: rgba(255, 255, 255, 0.03);
+  --tm-shadow-panel: rgba(0, 0, 0, 0.7);
+  --tm-focus-ring: 139 108 255;
+  --tm-focus-ring-alpha: 0.8;
+  --tm-scrollbar: 42 51 82;
+  --tm-selection-bg: 139 108 255;
+  --tm-selection-fg: 255 255 255;
+  --tm-skeleton-a: 30 39 64;
+  --tm-skeleton-b: 61 72 112;
+
+  /* Chart tokens (dark) */
+  --tm-chart-axis: 130 141 176;
+  --tm-chart-grid-alpha: 0.1;
+  --tm-chart-tooltip-bg: 13 18 36;
+  --tm-chart-tooltip-text: 221 227 242;
+  --tm-chart-tooltip-border-alpha: 0.25;
+  --tm-chart-pie-stroke: 10 14 28;
+  --tm-chart-legend-text: 179 188 214;
+  --tm-chart-contrast: 255 255 255;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* Surfaces (light) — pale navy-tinted neutrals */
+  --tm-midnight-950: 244 246 251;
+  --tm-midnight-900: 255 255 255;
+  --tm-midnight-850: 238 241 248;
+  --tm-midnight-800: 255 255 255;
+  --tm-midnight-700: 232 236 246;
+  --tm-midnight-600: 221 227 242;
+
+  /* Text & borders (light) — ramp inverted in value, same in meaning */
+  --tm-slateui-700: 213 220 237;
+  --tm-slateui-600: 195 203 221;
+  /* 500/400/300 darkened hue-preserved so muted text clears AA 4.5:1 on every
+     tinted surface (worst: raised-700 = 4.63 / 5.44 / 6.53); adjacent ramp steps
+     stay ≥1.18:1 so the hierarchy still reads (asserted in contrast.test.ts). */
+  --tm-slateui-500: 96 105 129;
+  --tm-slateui-400: 86 94 119;
+  --tm-slateui-300: 73 82 111;
+  --tm-slateui-200: 58 67 99;
+  --tm-slateui-100: 23 32 64;
+
+  /* Accents (light) — darker variants for contrast on pale surfaces */
+  --tm-violetui-600: 109 74 255;
+  --tm-violetui-500: 90 55 240;
+  --tm-violetui-400: 107 70 229;
+  --tm-violetui-300: 91 56 214;
+  --tm-blueui-500: 59 130 246;
+  --tm-blueui-400: 37 99 235;
+  --tm-blueui-300: 29 78 216;
+  --tm-cyanui-500: 8 145 178;
+  --tm-cyanui-400: 14 116 144;
+
+  /* Status (light) — darkened for AA contrast on white */
+  --tm-amber-300: 180 83 9;
+  --tm-amber-400: 217 119 6;
+  --tm-emerald-400: 4 120 87;
+  --tm-red-300: 185 28 28;
+  --tm-red-400: 220 38 38;
+  --tm-red-500: 239 68 68;
+
+  /* Elevation & effects (light) */
+  --tm-shadow-inset: rgba(16, 24, 48, 0.04);
+  --tm-shadow-panel: rgba(31, 41, 71, 0.16);
+  --tm-focus-ring: 109 74 255;
+  --tm-focus-ring-alpha: 0.8;
+  --tm-scrollbar: 195 203 221;
+  --tm-selection-bg: 109 74 255;
+  --tm-selection-fg: 255 255 255;
+  --tm-skeleton-a: 226 231 242;
+  --tm-skeleton-b: 195 203 221;
+
+  /* Chart tokens (light) */
+  --tm-chart-axis: 86 94 119; /* = slateui-400, kept in sync */
+  --tm-chart-grid-alpha: 0.35;
+  --tm-chart-tooltip-bg: 255 255 255;
+  --tm-chart-tooltip-text: 23 32 64;
+  --tm-chart-tooltip-border-alpha: 0.3;
+  --tm-chart-pie-stroke: 255 255 255;
+  --tm-chart-legend-text: 58 67 99;
+  --tm-chart-contrast: 255 255 255;
 }
 
 html {
@@ -28,31 +226,142 @@ body {
 
 /* Visible, accessible focus for keyboard navigation */
 :focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: 2px solid rgb(var(--tm-focus-ring) / var(--tm-focus-ring-alpha));
   outline-offset: 2px;
   border-radius: 4px;
 }
 
 ::selection {
-  background: rgba(139, 108, 255, 0.35);
-  color: #fff;
+  background: rgb(var(--tm-selection-bg) / 0.35);
+  color: rgb(var(--tm-selection-fg));
 }
 
 /* Scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a3352 transparent;
+  scrollbar-color: rgb(var(--tm-scrollbar)) transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #2a3352;
+  background: rgb(var(--tm-scrollbar));
   border-radius: 8px;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* Subtle hero entrance (guarded by prefers-reduced-motion below) */
+@keyframes tm-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-fadeUp {
+  animation: tm-fade-up 0.6s ease-out both;
+}
+
+/* ============================================================
+   Print styles (Ctrl+P and the report Print button)
+   - Force the light palette regardless of on-screen theme
+   - Hide application chrome (header, sidebar, controls, overlays)
+   - Keep report panels together across page breaks
+   ============================================================ */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  /* 1. Light palette for paper — same token names, print-safe values */
+  :root,
+  [data-theme='dark'],
+  [data-theme='light'] {
+    color-scheme: light;
+    --tm-midnight-950: 255 255 255;
+    --tm-midnight-900: 255 255 255;
+    --tm-midnight-850: 248 250 252;
+    --tm-midnight-800: 255 255 255;
+    --tm-midnight-700: 241 245 249;
+    --tm-midnight-600: 226 232 240;
+    --tm-slateui-700: 203 213 225;
+    --tm-slateui-600: 186 198 214;
+    --tm-slateui-500: 100 116 139;
+    --tm-slateui-400: 71 85 105;
+    --tm-slateui-300: 51 65 85;
+    --tm-slateui-200: 30 41 59;
+    --tm-slateui-100: 15 23 42;
+    --tm-violetui-600: 79 70 229;
+    --tm-violetui-500: 79 70 229;
+    --tm-violetui-400: 67 56 202;
+    --tm-violetui-300: 67 56 202;
+    --tm-blueui-500: 37 99 235;
+    --tm-blueui-400: 37 99 235;
+    --tm-blueui-300: 29 78 216;
+    --tm-cyanui-500: 14 116 144;
+    --tm-cyanui-400: 14 116 144;
+    --tm-amber-300: 161 98 7;
+    --tm-amber-400: 180 83 9;
+    --tm-emerald-400: 5 120 87;
+    --tm-red-300: 185 28 28;
+    --tm-red-400: 185 28 28;
+    --tm-red-500: 185 28 28;
+    --tm-shadow-panel: rgba(31, 41, 71, 0.2);
+    --tm-focus-ring-alpha: 0;
+    --tm-chart-axis: 71 85 105;
+    --tm-chart-grid-alpha: 0.4;
+    --tm-chart-tooltip-bg: 255 255 255;
+    --tm-chart-tooltip-text: 15 23 42;
+    --tm-chart-pie-stroke: 255 255 255;
+    --tm-chart-legend-text: 51 65 85;
+    --tm-chart-contrast: 255 255 255;
+  }
+
+  /* 2. Keep badge/chart colors meaningful on paper */
+  body {
+    background: #fff !important;
+    color: rgb(var(--tm-slateui-100)) !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* 3. Hide application chrome */
+  header,
+  aside,
+  button,
+  .btn-primary,
+  .btn-secondary,
+  .btn-ghost,
+  .fixed {
+    display: none !important;
+  }
+
+  /* 4. Full-width content without app padding */
+  main,
+  main > div {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+
+  /* 5. Panels and articles should not split across pages */
+  article,
+  .panel {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* 6. Cleaner links on paper */
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
 }
 
 /* Respect reduced-motion preferences */
@@ -101,11 +410,19 @@ body {
   }
 
   /* ---- Form controls ---- */
+  /* Light theme only: the shared slateui-500/70 base border composites to just
+     2.73:1 against the light page (WCAG 1.4.11 needs 3:1); /80 measures 3.32:1
+     vs page and 3.59:1 vs the white input. Declared BEFORE .input so the later
+     .input:hover / .input:focus rules (equal specificity) still win on
+     interaction; the dark theme keeps /70 (3.09:1, verified in contrast.test.ts). */
+  [data-theme='light'] .input {
+    border-color: rgb(var(--tm-slateui-500) / 0.8);
+  }
   .input {
-    @apply w-full bg-midnight-900 border border-slateui-600/60 rounded-md px-3.5 py-2.5
+    @apply w-full bg-midnight-900 border border-slateui-500/70 rounded-md px-3.5 py-2.5
       text-sm text-slateui-100 placeholder:text-slateui-400
       transition-colors duration-200
-      hover:border-slateui-500/70
+      hover:border-slateui-400/80
       focus:border-violetui-500 focus:outline-none focus:ring-1 focus:ring-violetui-500/50;
   }
   .label {
@@ -147,9 +464,9 @@ body {
     @apply rounded bg-midnight-700 animate-shimmer;
     background-image: linear-gradient(
       90deg,
-      rgba(30, 39, 64, 0) 0,
-      rgba(61, 72, 112, 0.45) 40px,
-      rgba(30, 39, 64, 0) 80px
+      rgb(var(--tm-skeleton-a) / 0) 0,
+      rgb(var(--tm-skeleton-b) / 0.45) 40px,
+      rgb(var(--tm-skeleton-a) / 0) 80px
     );
     background-size: 400px 100%;
     background-repeat: no-repeat;

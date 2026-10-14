@@ -7,18 +7,20 @@ import {
   Radar,
   Settings,
   Info,
+  Scale,
+  TrendingUp,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
   { to: '/research', label: 'New Research', icon: Radar },
   { to: '/history', label: 'Research History', icon: History },
+  { to: '/compare', label: 'Compare Runs', icon: Scale },
+  { to: '/trends', label: 'Trend Tracking', icon: TrendingUp },
   { to: '/topics', label: 'Saved Topics', icon: Lightbulb },
   { to: '/settings', label: 'Settings', icon: Settings },
   { to: '/about', label: 'Methodology', icon: Info },
 ] as const;
-
-const REPORTS_HINT = { to: '/history', label: 'Reports', icon: Compass } as const;
 
 interface SidebarProps {
   onNavigate?: () => void;
@@ -60,25 +62,6 @@ export default function Sidebar({ onNavigate, className = '' }: SidebarProps) {
             </NavLink>
           </li>
         ))}
-        <li className="pt-3 mt-3 border-t border-slateui-700/40">
-          <p className="px-3 pb-1.5 text-2xs font-semibold uppercase tracking-[0.16em] text-slateui-500">
-            Output
-          </p>
-          <NavLink
-            to={REPORTS_HINT.to}
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              `group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors duration-150 ${
-                isActive
-                  ? 'bg-violetui-600/15 text-violetui-300 border border-violetui-500/30'
-                  : 'text-slateui-300 hover:bg-midnight-700 hover:text-slateui-100 border border-transparent'
-              }`
-            }
-          >
-            <REPORTS_HINT.icon size={17} aria-hidden className="shrink-0" />
-            <span>{REPORTS_HINT.label}</span>
-          </NavLink>
-        </li>
       </ul>
 
       <div className="px-5 py-4 border-t border-slateui-700/50">

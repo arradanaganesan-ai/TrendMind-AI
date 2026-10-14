@@ -16,8 +16,16 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 # Force a clean, secret-free environment BEFORE app modules are imported.
-for var in ("SERPAPI_API_KEY", "AI_API_KEY", "AI_MODEL", "AI_PROVIDER"):
-    os.environ.pop(var, None)
+#
+# app.config runs load_dotenv() at import time, and dotenv only skips variables
+# that are already PRESENT in the environment. Merely popping the keys would
+# therefore let backend/.env re-inject the real credentials on first import —
+# which silently turned API tests into live SerpApi searches (network-bound,
+# credit-consuming, and intermittently failing). Explicit empty values keep the
+# secrets out and pin the suite to deterministic demo mode.
+os.environ["SERPAPI_API_KEY"] = ""
+os.environ["AI_API_KEY"] = ""
+os.environ["AI_MODEL"] = ""
 os.environ["AI_PROVIDER"] = "none"
 os.environ["ENABLE_SOURCE_EXTRACTION"] = "false"  # no network in tests
 os.environ["DATABASE_PATH"] = ":memory:"
@@ -32,6 +40,22 @@ def settings():
     s = get_settings()
     yield s
     reset_settings_cache()
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Give every test a fresh rate limiter.
+
+    routes._research_limiter is module-level, so without this its token
+    buckets accumulate checks across tests (and across randomized orderings),
+    which can intermittently 429 an unrelated test once the session-wide
+    total passes the per-minute limit.
+    """
+    from app.api import routes
+
+    routes._research_limiter = None
+    yield
+    routes._research_limiter = None
 
 
 @pytest.fixture()

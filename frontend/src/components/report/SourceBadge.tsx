@@ -31,15 +31,22 @@ const STATUS_META = {
 
 /**
  * Badge describing how much of a source was actually analyzed.
- * Makes snippet-based analysis explicitly visible in the UI.
+ * Makes snippet-based analysis explicitly visible in the UI, including the
+ * reason a page could not be retrieved (robots.txt, timeout, etc.) when the
+ * backend recorded one.
  */
 export default function SourceBadge({ source }: { source: SourceRef }) {
   const meta = STATUS_META[source.extractionStatus] ?? STATUS_META.snippet_only;
   const Icon = meta.icon;
   return (
-    <span className={meta.className} title={source.url}>
-      <Icon size={11} aria-hidden />
-      {meta.label}
+    <span className="inline-flex flex-col gap-1">
+      <span className={meta.className} title={source.url}>
+        <Icon size={11} aria-hidden />
+        {meta.label}
+      </span>
+      {source.extractionNote && (
+        <span className="text-2xs leading-snug text-slateui-500">{source.extractionNote}</span>
+      )}
     </span>
   );
 }

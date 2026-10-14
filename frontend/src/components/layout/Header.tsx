@@ -1,21 +1,26 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, Search, X } from 'lucide-react';
+import { Menu, Moon, Search, Sun } from 'lucide-react';
 import ModeBadge from '../ui/ModeBadge';
+import { useTheme } from '../ui/ThemeProvider';
 import { useConfigStatus } from '../../hooks/useConfigStatus';
 
 interface HeaderProps {
   title: string;
   onOpenMenu: () => void;
+  /** Ref to the mobile menu button so the shell can restore focus after the drawer closes. */
+  menuButtonRef?: React.RefObject<HTMLButtonElement>;
 }
 
 /**
- * Compact application header: page title, global search access, mode indicator.
+ * Compact application header: page title, global search access, theme toggle,
+ * mode indicator.
  */
-export default function Header({ title, onOpenMenu }: HeaderProps) {
+export default function Header({ title, onOpenMenu, menuButtonRef }: HeaderProps) {
   const [term, setTerm] = useState('');
   const navigate = useNavigate();
   const { status } = useConfigStatus();
+  const { resolved, toggleTheme } = useTheme();
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,6 +33,7 @@ export default function Header({ title, onOpenMenu }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-slateui-700/50 bg-midnight-900/90 px-4 backdrop-blur-sm sm:px-6">
       <button
+        ref={menuButtonRef}
         type="button"
         onClick={onOpenMenu}
         className="btn-ghost lg:hidden -ml-1 p-2"
@@ -63,6 +69,16 @@ export default function Header({ title, onOpenMenu }: HeaderProps) {
           </div>
         </form>
 
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="btn-ghost p-2 text-slateui-400"
+          aria-label={resolved === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          title={resolved === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        >
+          {resolved === 'dark' ? <Sun size={17} aria-hidden /> : <Moon size={17} aria-hidden />}
+        </button>
+
         {status && (
           <ModeBadge searchMode={status.demoMode ? 'demo' : 'live'} aiMode={status.aiConfigured ? 'llm' : 'basic'} />
         )}
@@ -76,18 +92,5 @@ export default function Header({ title, onOpenMenu }: HeaderProps) {
         </Link>
       </div>
     </header>
-  );
-}
-
-export function CloseMenuButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="btn-ghost p-2 lg:hidden"
-      aria-label="Close navigation menu"
-    >
-      <X size={20} aria-hidden />
-    </button>
   );
 }

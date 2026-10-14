@@ -50,6 +50,16 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _sanitize_note(reason: str) -> str | None:
+    """Bound a user-facing extraction note (why a page was not retrieved).
+
+    Collapses whitespace and truncates so notes stay short and safe for the UI;
+    returns None when there is nothing meaningful to show.
+    """
+    cleaned = " ".join(str(reason).split())
+    return cleaned[:160] if cleaned else None
+
+
 def _domain_of(url: str) -> str:
     from urllib.parse import urlparse
 
@@ -69,18 +79,32 @@ class ResearchPipeline:
         *,
         filters: dict[str, Any] | None = None,
         search_client: Any = None,
+        on_stage: Any = None,
     ) -> tuple[list[SearchResult], ResearchReport | None, str, str | None]:
         """Execute the pipeline.
 
         Returns (results, report, mode, error_message).
         On AI failure the report still returns in basic mode (graceful fallback).
+
+        `on_stage` is an optional async callback invoked with honest progress
+        stages: "searching" -> "extracting" -> "analyzing" -> "validating".
+        It is best-effort: a failing callback never fails the research run.
         """
         settings = self._settings
         filters = filters or {}
         num_results = int(filters.get("numResults") or 10)
         num_results = max(1, min(num_results, settings.max_results_limit))
 
+        async def stage(name: str) -> None:
+            if on_stage is None:
+                return
+            try:
+                await on_stage(name)
+            except Exception:  # noqa: BLE001 - progress must never break research
+                logger.debug("Stage callback failed for %s", name, exc_info=True)
+
         # ---- Step 1: collect search results (live or demo) ----
+        await stage("searching")
         searched_at = _now()
         if settings.serpapi_configured:
             mode = "live"
@@ -112,8 +136,12 @@ class ResearchPipeline:
         extracted_count = 0
         content_by_url: dict[str, tuple[str, str, bool]] = {}
         # url -> (text, title, extracted_ok)
+        # Real outcome for every ATTEMPTED page, including blocked/failed ones,
+        # so the UI can show honest per-source retrieval states.
+        extraction_outcome_by_url: dict[str, tuple[str, str | None]] = {}
 
         if settings.enable_source_extraction and mode == "live":
+            await stage("extracting")
             targets = [r.url for r in results[: settings.max_extract_pages]]
             try:
                 extraction_results = await extract_pages(
@@ -124,6 +152,7 @@ class ResearchPipeline:
                     max_chars=settings.max_extract_chars,
                 )
                 for ex in extraction_results:
+                    extraction_outcome_by_url[ex.url] = (ex.status, _sanitize_note(ex.reason))
                     if ex.status == "extracted":
                         content_by_url[ex.url] = (ex.text, ex.title, True)
                         extracted_count += 1
@@ -138,12 +167,18 @@ class ResearchPipeline:
             has_page = r.url in content_by_url
             if has_page:
                 text, _title, _ = content_by_url[r.url]
-                status = "extracted"
-            elif settings.enable_source_extraction and mode == "live":
-                # Was it attempted and failed/blocked?
-                status = "snippet_only"
+                status, note = "extracted", None
             else:
-                status = "skipped" if mode == "demo" else "snippet_only"
+                attempted = extraction_outcome_by_url.get(r.url)
+                if attempted is not None:
+                    # Extraction was attempted: surface the REAL outcome
+                    # (blocked / failed / skipped) plus a user-safe note.
+                    status, note = attempted
+                elif settings.enable_source_extraction and mode == "live":
+                    # Attempted? No — this URL was beyond the extraction cap.
+                    status, note = "snippet_only", None
+                else:
+                    status, note = ("skipped" if mode == "demo" else "snippet_only"), None
 
             snippet_or_content = content_by_url.get(r.url, (r.snippet, "", False))[0]
             sources_ref.append(
@@ -156,6 +191,7 @@ class ResearchPipeline:
                     publishedDate=r.publishedDate,
                     extracted=has_page,
                     extractionStatus=status,  # type: ignore[arg-type]
+                    extractionNote=note,
                 )
             )
             source_docs.append(
@@ -185,6 +221,7 @@ class ResearchPipeline:
         mode_notes = self._mode_notes(mode, extracted_count, len(results))
 
         # ---- Step 4: analysis (AI if configured, else deterministic basic) ----
+        await stage("analyzing")
         ai_mode = "basic"
         report: ResearchReport | None = None
 
@@ -223,6 +260,7 @@ class ResearchPipeline:
             report.coverage = compute_coverage(report.keyFindings, len(report.conflictingClaims))
 
         # ---- Steps 5-6: attach sources, methodology, validate citations ----
+        await stage("validating")
         report.sources = sources_ref
         report.searchedAt = searched_at
         report.generatedAt = _now()
@@ -478,10 +516,6 @@ def _validate_list(items: Any, model) -> list:
         except ValidationError:
             continue
     return validated
-
-
-def _url_for(doc: SourceDoc) -> str:
-    return doc.url
 
 
 def _parse_json_response(text: str) -> dict:

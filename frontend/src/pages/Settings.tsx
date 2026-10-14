@@ -13,11 +13,11 @@ import {
 import ErrorState from '../components/ui/ErrorState';
 import { SkeletonRows } from '../components/ui/Skeletons';
 import ModeBadge from '../components/ui/ModeBadge';
+import { useTheme, type ThemePreference } from '../components/ui/ThemeProvider';
 import { useToast } from '../hooks/useToast';
 import { useConfigStatus } from '../hooks/useConfigStatus';
 
 interface Preferences {
-  theme: 'system' | 'dark';
   defaultRegion: string;
   defaultLanguage: string;
   defaultResultCount: number;
@@ -26,7 +26,6 @@ interface Preferences {
 const STORAGE_KEY = 'trendmind.prefs.v1';
 
 const DEFAULT_PREFS: Preferences = {
-  theme: 'system',
   defaultRegion: 'us',
   defaultLanguage: 'en',
   defaultResultCount: 10,
@@ -46,6 +45,7 @@ function loadPrefs(): Preferences {
 export default function Settings() {
   const { push } = useToast();
   const { status, loading, error, reload } = useConfigStatus();
+  const { theme, resolved, setTheme } = useTheme();
   const [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFS);
   const [dirty, setDirty] = useState(false);
 
@@ -136,6 +136,10 @@ export default function Settings() {
             </select>
           </div>
         </div>
+        <button type="button" onClick={save} className="btn-primary mt-4" disabled={!dirty}>
+          <Save size={15} aria-hidden />
+          {dirty ? 'Save preferences' : 'Saved'}
+        </button>
       </section>
 
       {/* Theme */}
@@ -143,21 +147,22 @@ export default function Settings() {
         <h3 id="pref-theme" className="section-title mb-4">
           Theme
         </h3>
-        <div className="flex flex-wrap gap-3" role="radiogroup" aria-label="Theme preference">
+        <div className="flex flex-wrap items-center gap-3" role="radiogroup" aria-label="Theme preference">
           {(
             [
               { value: 'system', label: 'Match system', icon: Monitor },
-              { value: 'dark', label: 'Dark (default)', icon: Moon },
+              { value: 'light', label: 'Light', icon: Sun },
+              { value: 'dark', label: 'Dark', icon: Moon },
             ] as const
           ).map((opt) => (
             <button
               key={opt.value}
               type="button"
               role="radio"
-              aria-checked={prefs.theme === opt.value}
-              onClick={() => update('theme', opt.value)}
+              aria-checked={theme === opt.value}
+              onClick={() => setTheme(opt.value as ThemePreference)}
               className={`btn px-4 py-2.5 border ${
-                prefs.theme === opt.value
+                theme === opt.value
                   ? 'border-violetui-500/70 bg-violetui-600/15 text-violetui-300'
                   : 'border-slateui-600/70 bg-midnight-700 text-slateui-300 hover:bg-midnight-600'
               }`}
@@ -167,14 +172,10 @@ export default function Settings() {
             </button>
           ))}
           <span className="self-center text-2xs text-slateui-500">
-            <Sun size={12} className="mr-1 inline" aria-hidden />
-            The application ships as a dark-first design; a light theme is planned.
+            Currently showing the <span className="font-medium text-slateui-300">{resolved}</span>{' '}
+            theme. Changes apply immediately.
           </span>
         </div>
-        <button type="button" onClick={save} className="btn-primary mt-4" disabled={!dirty}>
-          <Save size={15} aria-hidden />
-          {dirty ? 'Save preferences' : 'Saved'}
-        </button>
       </section>
 
       {/* System status */}
@@ -266,8 +267,8 @@ export default function Settings() {
           </li>
           <li className="flex gap-2.5">
             <XCircle size={15} aria-hidden className="mt-0.5 shrink-0 text-slateui-500" />
-            Saved preferences (region, language, result count, theme) are stored in this browser’s
-            local storage only.
+            Saved search defaults (region, language, result count) and the theme preference are
+            stored in this browser’s local storage only.
           </li>
           <li className="flex gap-2.5">
             <XCircle size={15} aria-hidden className="mt-0.5 shrink-0 text-slateui-500" />

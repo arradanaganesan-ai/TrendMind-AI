@@ -5,6 +5,8 @@ import Dashboard from './pages/Dashboard';
 import NewResearch from './pages/NewResearch';
 import ReportPage from './pages/ReportPage';
 import History from './pages/History';
+import Compare from './pages/Compare';
+import Trends from './pages/Trends';
 import SavedTopics from './pages/SavedTopics';
 import Settings from './pages/Settings';
 import About from './pages/About';
@@ -20,6 +22,8 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/research" element={<NewResearch />} />
         <Route path="/history" element={<History />} />
+        <Route path="/compare" element={<Compare />} />
+        <Route path="/trends" element={<Trends />} />
         <Route path="/topics" element={<SavedTopics />} />
         <Route path="/report/:id" element={<ReportPage />} />
         <Route path="/settings" element={<Settings />} />

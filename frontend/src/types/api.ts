@@ -56,6 +56,8 @@ export interface SourceRef {
   /** true when the full page text was retrieved; false when snippet-only. */
   extracted: boolean;
   extractionStatus: 'extracted' | 'snippet_only' | 'blocked' | 'failed' | 'skipped';
+  /** User-safe explanation of why the page was not retrieved (blocked/failed). */
+  extractionNote?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +167,43 @@ export interface SavedTopic {
   createdAt: string;
 }
 
+/**
+ * Honest pipeline progress stages, emitted by `POST /api/research/stream`
+ * at real step boundaries. "extracting" is only emitted when page extraction
+ * actually runs (live mode with extraction enabled).
+ */
+export type ResearchStage = 'searching' | 'extracting' | 'analyzing' | 'validating';
+
+/**
+ * One UTC calendar day of real research activity (server-side COUNT over
+ * existing rows; days without runs are explicit zeros, never interpolated).
+ */
+export interface ActivityPoint {
+  date: string; // YYYY-MM-DD
+  count: number;
+  completed: number;
+}
+
+export interface ActivityResponse {
+  days: number;
+  points: ActivityPoint[];
+}
+
+/**
+ * Workspace counters. Every value is a real database COUNT computed on the
+ * backend for this instance — never estimated or fabricated.
+ */
+export interface WorkspaceStats {
+  researchTotal: number;
+  researchCompleted: number;
+  researchFailed: number;
+  /** Completed runs that have a stored report available to open/export. */
+  reportsTotal: number;
+  savedTopics: number;
+  last7DaysResearch: number;
+  last7DaysCompleted: number;
+}
+
 // ---------------------------------------------------------------------------
 // Config / health
 // ---------------------------------------------------------------------------
@@ -198,4 +237,189 @@ export interface ApiErrorBody {
     message: string;
     details?: unknown;
   };
+}
+
+// ---------------------------------------------------------------------------
+// Report comparison
+// ---------------------------------------------------------------------------
+
+/** A finding referenced by its position in the originating report. */
+export interface ComparedFindingRef {
+  index: number;
+  text: string;
+  evidenceClass: EvidenceClass;
+  sourceIds: string[];
+  caveat: string | null;
+}
+
+/** Two findings judged to describe the same claim. */
+export interface ComparedFindingPair {
+  a: ComparedFindingRef;
+  b: ComparedFindingRef;
+  similarity: number;
+  matchType: 'exact' | 'similar';
+  sharedSourceIds: string[];
+}
+
+export interface ComparedConflict {
+  a: ComparedFindingRef;
+  b: ComparedFindingRef;
+  similarity: number;
+  status: 'possible_conflict' | 'ai_reviewed_conflict';
+  explanation: string;
+  /** True until a human (or the AI pass) has actually reviewed the sources. */
+  insufficientEvidence: boolean;
+}
+
+export interface ComparedRun {
+  id: string;
+  query: string;
+  researchQuestion: string;
+  createdAt: string;
+  searchedAt: string;
+  mode: SearchMode;
+  aiMode: AiMode;
+  findingCount: number;
+  sourceCount: number;
+}
+
+export interface ComparedSources {
+  sharedUrls: string[];
+  sharedCount: number;
+  onlyACount: number;
+  onlyBCount: number;
+  sharedDomains: string[];
+}
+
+export interface ComparisonMethodology {
+  mode: 'basic' | 'ai';
+  explanation: string[];
+  aiNote: string | null;
+}
+
+export interface ReportComparison {
+  runA: ComparedRun;
+  runB: ComparedRun;
+  sharedFindings: ComparedFindingPair[];
+  similarFindings: ComparedFindingPair[];
+  conflicts: ComparedConflict[];
+  uniqueToA: ComparedFindingRef[];
+  uniqueToB: ComparedFindingRef[];
+  sources: ComparedSources;
+  methodology: ComparisonMethodology;
+  temporalNote: string | null;
+  noveltyCaveat: string;
+}
+
+// ---------------------------------------------------------------------------
+// Historical trend tracking (dated snapshots over real research runs)
+// ---------------------------------------------------------------------------
+
+/** A query the user chose to follow across research runs. */
+export interface TrackedTopic {
+  id: string;
+  query: string;
+  createdAt: string;
+  /** Real count of stored completed runs with a report for this query. */
+  snapshotCount: number;
+  firstSnapshotAt: string | null;
+  lastSnapshotAt: string | null;
+}
+
+/** A query with completed runs — offered for tracking (real data only). */
+export interface TrendCandidate {
+  query: string;
+  runCount: number;
+  firstRunAt: string;
+  lastRunAt: string;
+}
+
+/** One theme as observed in a single dated snapshot. */
+export interface SnapshotTheme {
+  name: string;
+  mentionCount: number;
+  /** 0–100, from that run's own evidence — not a probability. */
+  evidenceStrength: number;
+  confidence: 'strong' | 'moderate' | 'emerging' | 'tentative';
+}
+
+/** Identity + real timestamp of one snapshot. */
+export interface SnapshotRef {
+  researchId: string;
+  createdAt: string;
+  searchedAt: string;
+}
+
+/** One dated snapshot: a stored research run and its real report payload. */
+export interface TimelineSnapshot {
+  researchId: string;
+  query: string;
+  createdAt: string;
+  searchedAt: string;
+  mode: SearchMode;
+  aiMode: AiMode;
+  resultCount: number;
+  findingCount: number;
+  sourceCount: number;
+  domainCount: number;
+  findings: ComparedFindingRef[];
+  sources: SourceRef[];
+  themes: SnapshotTheme[];
+}
+
+/** Source overlap between two consecutive snapshots (matched by exact URL). */
+export interface SourceCoverageDelta {
+  sharedCount: number;
+  addedCount: number;
+  removedCount: number;
+  /** Bounded lists (backend caps transport size). */
+  addedUrls: string[];
+  removedUrls: string[];
+  addedDomains: string[];
+  removedDomains: string[];
+}
+
+/** Evidence-strength delta for a theme observed in BOTH snapshots only. */
+export interface ThemeScoreChange {
+  theme: string;
+  olderStrength: number;
+  newerStrength: number;
+  delta: number;
+  olderConfidence: 'strong' | 'moderate' | 'emerging' | 'tentative';
+  newerConfidence: 'strong' | 'moderate' | 'emerging' | 'tentative';
+}
+
+/** Deterministic deltas between two consecutive dated snapshots. */
+export interface SnapshotChange {
+  fromSnapshot: SnapshotRef;
+  toSnapshot: SnapshotRef;
+  daysApart: number;
+  unchangedCount: number;
+  newlyObserved: ComparedFindingRef[];
+  /** Absent from the newer search — never "proven false". */
+  noLongerObserved: ComparedFindingRef[];
+  absenceCaveat: string;
+  sourceCoverage: SourceCoverageDelta;
+  themeScoreChanges: ThemeScoreChange[];
+  /** Theme names present on only one side — reported as not comparable. */
+  incomparableThemes: string[];
+}
+
+export interface TrendMethodology {
+  mode: 'basic' | 'ai';
+  explanation: string[];
+  aiNote: string | null;
+  aiSummary: string | null;
+}
+
+/** Snapshots (oldest-first) + changes between consecutive snapshots. */
+export interface TrendTimeline {
+  topic: TrackedTopic;
+  snapshots: TimelineSnapshot[];
+  changes: SnapshotChange[];
+  methodology: TrendMethodology;
+  /** Set only when exactly one dated snapshot exists. */
+  singleSnapshotNote: string | null;
+  dateFrom: string | null;
+  dateTo: string | null;
 }

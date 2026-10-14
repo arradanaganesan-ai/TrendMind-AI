@@ -8,14 +8,27 @@
       content="TrendMind AI — Search the web. Discover patterns. Understand what matters. AI-powered web research and trend intelligence."
     />
     <title>TrendMind AI — The Web Intelligence Engine</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
+    <!-- Fonts are self-hosted (public/fonts + @font-face in styles/index.css):
+         no external font requests, so no proxy/console failures. -->
   </head>
   <body>
+    <script>
+      // Apply the stored theme before first paint to avoid a flash of the
+      // wrong theme. Mirrors ThemeProvider (src/components/ui/ThemeProvider.tsx).
+      (function () {
+        try {
+          var pref = localStorage.getItem('trendmind.theme.v1');
+          var dark =
+            pref === 'dark' ||
+            (pref !== 'light' &&
+              (!window.matchMedia ||
+                !window.matchMedia('(prefers-color-scheme: light)').matches));
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

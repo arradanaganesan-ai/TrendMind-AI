@@ -37,6 +37,14 @@ CREATE TABLE IF NOT EXISTS saved_topic (
 );
 
 CREATE INDEX IF NOT EXISTS idx_topic_created ON saved_topic(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS tracked_topic (
+    id         TEXT PRIMARY KEY,
+    query      TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_tracked_created ON tracked_topic(created_at DESC);
 """
 
 

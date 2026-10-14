@@ -364,3 +364,83 @@ class TestRateLimit:
         finally:
             object.__setattr__(settings, "research_rate_limit_per_minute", original_limit)
             routes._research_limiter = None
+
+
+class TestExtractionStatusPropagation:
+    """Blocked/failed extraction outcomes must reach SourceRef (with a
+    bounded user-safe note) instead of being collapsed to snippet_only."""
+
+    @pytest.mark.asyncio
+    async def test_real_extraction_outcomes_propagate(self, monkeypatch):
+        from app.schemas import SearchResult
+        from app.services.extraction_service import ExtractionResult
+
+        settings = type(
+            "S",
+            (),
+            {
+                "serpapi_api_key": "fake-key",
+                "serpapi_configured": True,
+                "demo_mode": False,
+                "serpapi_engine": "google",
+                "search_timeout_seconds": 5.0,
+                "enable_source_extraction": True,
+                "max_extract_pages": 5,
+                "extract_timeout_seconds": 1.0,
+                "max_page_bytes": 1000,
+                "max_extract_chars": 1000,
+                "max_results_limit": 20,
+                "ai_configured": False,
+                "ai_max_evidence_chars": 5000,
+            },
+        )()
+
+        results = [
+            SearchResult(position=1, title="OK", url="https://example.com/a", snippet="sa", domain="example.com"),
+            SearchResult(position=2, title="Blocked", url="https://example.com/b", snippet="sb", domain="example.com"),
+            SearchResult(position=3, title="Failed", url="https://example.com/c", snippet="sc", domain="example.com"),
+            SearchResult(position=4, title="Noisy", url="https://example.com/d", snippet="sd", domain="example.com"),
+        ]
+
+        class FakeService:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            async def search(self, *args, **kwargs):
+                return type("R", (), {"results": results, "searched_at": "2026-01-01T00:00:00+00:00"})()
+
+        async def fake_extract_pages(urls, **kwargs):
+            return [
+                ExtractionResult(url="https://example.com/a", status="extracted", title="A", text="page text " * 20),
+                ExtractionResult(url="https://example.com/b", status="blocked", reason="robots.txt disallows this path"),
+                ExtractionResult(url="https://example.com/c", status="failed", reason="Connection timed out"),
+                ExtractionResult(url="https://example.com/d", status="failed", reason="x" * 400),
+            ]
+
+        monkeypatch.setattr("app.services.analysis_pipeline.SerpApiSearchService", FakeService)
+        monkeypatch.setattr("app.services.analysis_pipeline.extract_pages", fake_extract_pages)
+
+        pipeline = ResearchPipeline(settings)
+        _src_results, report, mode, error = await pipeline.run("propagation probe", filters={})
+
+        assert mode == "live"
+        assert error is None
+        assert report is not None
+
+        by_url = {s.url: s for s in report.sources}
+        assert by_url["https://example.com/a"].extractionStatus == "extracted"
+        assert by_url["https://example.com/a"].extractionNote is None
+
+        blocked = by_url["https://example.com/b"]
+        assert blocked.extractionStatus == "blocked"
+        assert blocked.extractionNote == "robots.txt disallows this path"
+        assert blocked.extracted is False
+
+        failed = by_url["https://example.com/c"]
+        assert failed.extractionStatus == "failed"
+        assert failed.extractionNote == "Connection timed out"
+
+        # Notes are bounded: never longer than 160 characters.
+        noisy = by_url["https://example.com/d"]
+        assert noisy.extractionStatus == "failed"
+        assert noisy.extractionNote is not None and len(noisy.extractionNote) == 160

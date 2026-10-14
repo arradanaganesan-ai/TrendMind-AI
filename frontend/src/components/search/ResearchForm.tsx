@@ -1,8 +1,27 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Search, SlidersHorizontal, Loader2 } from 'lucide-react';
 import type { ResearchFilters, ResearchRequest } from '../../types/api';
 
 export const MAX_QUERY_LENGTH = 300;
+
+/** Mirrors the preferences saved by the Settings page (localStorage). */
+const PREFS_KEY = 'trendmind.prefs.v1';
+
+interface SavedPrefs {
+  defaultRegion?: string;
+  defaultLanguage?: string;
+  defaultResultCount?: number;
+}
+
+function loadSavedPrefs(): SavedPrefs {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as SavedPrefs;
+  } catch {
+    return {};
+  }
+}
 
 interface ResearchFormProps {
   onSubmit: (payload: ResearchRequest) => void;
@@ -29,19 +48,34 @@ export default function ResearchForm({
   const [query, setQuery] = useState(initialQuery);
   const [error, setError] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState<ResearchFilters>({
-    category: 'general',
-    region: 'us',
-    language: 'en',
-    timeRange: 'any',
-    numResults: Math.min(10, maxResults),
+  // Default filters honor the user's saved preferences from the Settings page.
+  const [filters, setFilters] = useState<ResearchFilters>(() => {
+    const prefs = loadSavedPrefs();
+    return {
+      category: 'general',
+      region: prefs.defaultRegion ?? 'us',
+      language: prefs.defaultLanguage ?? 'en',
+      timeRange: 'any',
+      numResults: Math.min(prefs.defaultResultCount ?? 10, maxResults),
+    };
   });
+
+  // Keep the input in sync when the URL query changes while this page stays
+  // mounted (e.g. a new search started from the header).
+  useEffect(() => {
+    setQuery(initialQuery);
+    setError(null);
+  }, [initialQuery]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = query.trim();
     if (!trimmed) {
       setError('Enter a topic, question, or trend to research.');
+      return;
+    }
+    if (trimmed.length < 2) {
+      setError('Queries must be at least 2 characters long.');
       return;
     }
     if (trimmed.length > MAX_QUERY_LENGTH) {

@@ -78,6 +78,22 @@ class TopicCreate(BaseModel):
         return cleaned
 
 
+class TrackedTopicCreate(BaseModel):
+    """Start tracking an existing research query (one query = one topic)."""
+
+    query: str = Field(..., min_length=2, max_length=300)
+
+    @field_validator("query")
+    @classmethod
+    def _clean_query(cls, v: str) -> str:
+        cleaned = " ".join(v.split())
+        if len(cleaned) < 2:
+            raise ValueError("Query must be at least 2 characters.")
+        if len(cleaned) > 300:
+            raise ValueError("Query is limited to 300 characters.")
+        return cleaned
+
+
 # --------------------------------------------------------------------------
 # Search results / sources
 # --------------------------------------------------------------------------
@@ -101,6 +117,9 @@ class SourceRef(BaseModel):
     publishedDate: str | None = None
     extracted: bool = False
     extractionStatus: ExtractionStatus = "snippet_only"
+    # User-safe, truncated explanation of WHY a page was not retrieved
+    # (e.g. robots.txt restriction, timeout). None when not attempted.
+    extractionNote: str | None = None
 
 
 # --------------------------------------------------------------------------
@@ -237,6 +256,31 @@ class HealthResponse(BaseModel):
     time: str
 
 
+class WorkspaceStats(BaseModel):
+    """Real database-backed counters for this instance. No estimates."""
+
+    researchTotal: int = 0
+    researchCompleted: int = 0
+    researchFailed: int = 0
+    reportsTotal: int = 0
+    savedTopics: int = 0
+    last7DaysResearch: int = 0
+    last7DaysCompleted: int = 0
+
+
+class ActivityPoint(BaseModel):
+    """One UTC calendar day of real research activity (zero-filled)."""
+
+    date: str  # YYYY-MM-DD
+    count: int
+    completed: int
+
+
+class ActivityResponse(BaseModel):
+    days: int
+    points: list[ActivityPoint]
+
+
 class ConfigStatus(BaseModel):
     version: str
     searchMode: SearchMode
@@ -257,3 +301,219 @@ class ErrorBody(BaseModel):
 
 class ErrorResponse(BaseModel):
     error: ErrorBody
+
+
+# --------------------------------------------------------------------------
+# Report comparison
+# --------------------------------------------------------------------------
+
+class FindingRef(BaseModel):
+    """A finding referenced by its position in the originating report."""
+
+    index: int = Field(ge=0)
+    text: str
+    evidenceClass: EvidenceClass = "fact"
+    sourceIds: list[str] = Field(default_factory=list)
+    caveat: str | None = None
+
+
+class FindingPair(BaseModel):
+    """Two findings judged to describe the same claim."""
+
+    a: FindingRef
+    b: FindingRef
+    similarity: float = Field(ge=0.0, le=1.0)
+    matchType: Literal["exact", "similar"]
+    sharedSourceIds: list[str] = Field(default_factory=list)
+
+
+class ConflictCandidate(BaseModel):
+    """Findings about the same subject with opposing polarity.
+
+    Basic-mode candidates are never presented as confirmed contradictions —
+    `insufficientEvidence` stays True until a human (or the AI pass) reviews
+    the cited sources.
+    """
+
+    a: FindingRef
+    b: FindingRef
+    similarity: float = Field(ge=0.0, le=1.0)
+    status: Literal["possible_conflict", "ai_reviewed_conflict"]
+    explanation: str
+    insufficientEvidence: bool = True
+
+
+class ComparedRun(BaseModel):
+    """Identity of one side of the comparison."""
+
+    id: str
+    query: str
+    researchQuestion: str
+    createdAt: str
+    searchedAt: str
+    mode: SearchMode
+    aiMode: AiMode
+    findingCount: int
+    sourceCount: int
+
+
+class SourceComparison(BaseModel):
+    """Overlap between the two reports' source lists (matched by exact URL)."""
+
+    sharedUrls: list[str] = Field(default_factory=list)  # bounded for transport
+    sharedCount: int = 0
+    onlyACount: int = 0
+    onlyBCount: int = 0
+    sharedDomains: list[str] = Field(default_factory=list)
+
+
+class ComparisonMethodology(BaseModel):
+    """How the comparison was computed — never claims more than was done."""
+
+    mode: Literal["basic", "ai"]
+    explanation: list[str] = Field(default_factory=list)
+    aiNote: str | None = None
+
+
+class ReportComparison(BaseModel):
+    runA: ComparedRun
+    runB: ComparedRun
+    sharedFindings: list[FindingPair] = Field(default_factory=list)
+    similarFindings: list[FindingPair] = Field(default_factory=list)
+    conflicts: list[ConflictCandidate] = Field(default_factory=list)
+    uniqueToA: list[FindingRef] = Field(default_factory=list)
+    uniqueToB: list[FindingRef] = Field(default_factory=list)
+    sources: SourceComparison
+    methodology: ComparisonMethodology
+    temporalNote: str | None = None
+    noveltyCaveat: str
+
+
+# ---------------------------------------------------------------------------
+# Historical trend tracking (dated snapshots over real research runs)
+# ---------------------------------------------------------------------------
+
+class TrackedTopic(BaseModel):
+    """A query the user chose to follow across research runs."""
+
+    id: str
+    query: str
+    createdAt: str
+    snapshotCount: int = 0
+    firstSnapshotAt: str | None = None
+    lastSnapshotAt: str | None = None
+
+
+class TrackedTopicListResponse(BaseModel):
+    items: list[TrackedTopic]
+
+
+class TrendCandidate(BaseModel):
+    """A query with completed runs — offered for tracking (real data only)."""
+
+    query: str
+    runCount: int = Field(ge=1)
+    firstRunAt: str
+    lastRunAt: str
+
+
+class TrendCandidateListResponse(BaseModel):
+    items: list[TrendCandidate]
+
+
+class SnapshotTheme(BaseModel):
+    """One theme as observed in a single dated snapshot."""
+
+    name: str
+    mentionCount: int = 0
+    evidenceStrength: int = Field(ge=0, le=100)
+    confidence: Confidence = "tentative"
+
+
+class SnapshotRef(BaseModel):
+    """Identity + real timestamp of one snapshot."""
+
+    researchId: str
+    createdAt: str
+    searchedAt: str
+
+
+class TimelineSnapshot(BaseModel):
+    """One dated snapshot: a stored research run and its real report payload."""
+
+    researchId: str
+    query: str
+    createdAt: str
+    searchedAt: str
+    mode: SearchMode
+    aiMode: AiMode
+    resultCount: int
+    findingCount: int
+    sourceCount: int
+    domainCount: int
+    findings: list[FindingRef] = Field(default_factory=list)
+    sources: list[SourceRef] = Field(default_factory=list)
+    themes: list[SnapshotTheme] = Field(default_factory=list)
+
+
+class SourceCoverageDelta(BaseModel):
+    """Source overlap between two consecutive snapshots (matched by exact URL)."""
+
+    sharedCount: int = 0
+    addedCount: int = 0
+    removedCount: int = 0
+    addedUrls: list[str] = Field(default_factory=list)  # bounded for transport
+    removedUrls: list[str] = Field(default_factory=list)
+    addedDomains: list[str] = Field(default_factory=list)
+    removedDomains: list[str] = Field(default_factory=list)
+
+
+class ThemeScoreChange(BaseModel):
+    """Evidence-strength delta for a theme observed in BOTH snapshots.
+
+    Only themes whose (normalized) names match are comparable — anything else
+    is reported as not comparable rather than interpolated.
+    """
+
+    theme: str
+    olderStrength: int = Field(ge=0, le=100)
+    newerStrength: int = Field(ge=0, le=100)
+    delta: int = Field(ge=-100, le=100)
+    olderConfidence: Confidence = "tentative"
+    newerConfidence: Confidence = "tentative"
+
+
+class SnapshotChange(BaseModel):
+    """Deterministic deltas between two consecutive dated snapshots."""
+
+    fromSnapshot: SnapshotRef
+    toSnapshot: SnapshotRef
+    daysApart: float = Field(ge=0.0)
+    unchangedCount: int = 0
+    newlyObserved: list[FindingRef] = Field(default_factory=list)
+    noLongerObserved: list[FindingRef] = Field(default_factory=list)
+    absenceCaveat: str
+    sourceCoverage: SourceCoverageDelta
+    themeScoreChanges: list[ThemeScoreChange] = Field(default_factory=list)
+    incomparableThemes: list[str] = Field(default_factory=list)
+
+
+class TrendMethodology(BaseModel):
+    """How the timeline was computed — never claims more than was done."""
+
+    mode: Literal["basic", "ai"]
+    explanation: list[str] = Field(default_factory=list)
+    aiNote: str | None = None
+    aiSummary: str | None = None
+
+
+class TrendTimeline(BaseModel):
+    """Snapshots (oldest-first) + changes between consecutive snapshots."""
+
+    topic: TrackedTopic
+    snapshots: list[TimelineSnapshot] = Field(default_factory=list)
+    changes: list[SnapshotChange] = Field(default_factory=list)
+    methodology: TrendMethodology
+    singleSnapshotNote: str | None = None
+    dateFrom: str | None = None
+    dateTo: str | None = None
